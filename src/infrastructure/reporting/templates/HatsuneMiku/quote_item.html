@@ -1,39 +1,28 @@
 {% if quotes %}
-<style>
-    .quotes-section { grid-column: span 12; display: flex; flex-direction: column; gap: 20px; margin-top: 10px; }
-    .quote-wrapper { width: 100%; max-width: 90%; }
-    .q-flex-container { display: flex; gap: 15px; align-items: flex-start; }
-    .q-avatar { width: 45px; height: 45px; border-radius: 4px; border: 2px solid var(--color-miku); }
-    .quote-wrapper:nth-child(even) .q-avatar { border-color: var(--color-pink); }
-    .q-sender-name { font-family: var(--font-hand); font-size: 1rem; color: var(--ink-secondary); margin-bottom: 4px; }
-    .q-bubble { background: #fff; border: 2px solid var(--color-miku); padding: 15px 20px; border-radius: 2px 15px 15px 15px; position: relative; z-index: 2; box-shadow: 4px 4px 0 var(--color-light-teal); }
-    
-    .quote-wrapper:nth-child(even) { align-self: flex-end; }
-    .quote-wrapper:nth-child(even) .q-flex-container { flex-direction: row-reverse; }
-    .quote-wrapper:nth-child(even) .q-sender-name { text-align: right; }
-    .quote-wrapper:nth-child(even) .q-bubble { border-color: var(--color-pink); border-radius: 15px 2px 15px 15px; box-shadow: -4px 4px 0 #ffe4e1; text-align: right; }
-    
-    .q-content { font-family: var(--font-body); font-size: 1.2rem; font-weight: bold; color: var(--color-dark); }
-    .q-analysis-note { background: var(--color-dark); color: white; padding: 8px 12px; font-size: 0.9rem; margin-top: -2px; border-radius: 0 0 8px 8px; font-family: var(--font-body); display: inline-block; }
-    .note-label { color: var(--color-miku); font-weight: bold; font-family: var(--font-hand); }
-</style>
-<div class="quotes-section">
-    <div class="section-title">💬 名台词 Vocal Quotes</div>
+<div style="margin-bottom: 40px;">
+    <div class="section-header">
+        <div class="v-bar"></div>
+        <div class="section-title-text">每日回响</div>
+    </div>
     {% for quote in quotes %}
-    <div class="quote-wrapper">
-        <div class="q-flex-container">
-            <div>
-                {% if quote.avatar_url %}
-                <img src="{{ quote.avatar_url }}" class="q-avatar">
-                {% endif %}
+    <div style="margin-bottom: 25px; display: flex; flex-direction: column; align-items: {% if loop.index0 is even %}flex-start{% else %}flex-end{% endif %};">
+        <div style="display: flex; gap: 15px; max-width: 85%; {% if loop.index0 is odd %}flex-direction: row-reverse;{% endif %}">
+            <div style="width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 2px var(--miku-light); flex-shrink: 0; overflow: hidden; background: var(--bg-page-base);">
+                {% if quote.avatar_url %}<img src="{{ quote.avatar_url }}" style="width: 100%; height: 100%; object-fit: cover;">{% endif %}
             </div>
-            <div style="flex: 1;">
-                <div class="q-sender-name">{{ quote.sender }}</div>
-                <div class="q-bubble">
-                    <div class="q-content">{{ quote.content }}</div>
+            <div style="{% if loop.index0 is odd %}text-align: right;{% endif %}">
+                <div style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 6px; font-weight: bold;">{{ quote.sender }}</div>
+                
+                <div style="background: rgba(255, 255, 255, 0.95); padding: 16px 22px; border: 1px solid var(--border-miku-light); box-shadow: 0 4px 10px rgba(57,197,187,0.05); border-radius: {% if loop.index0 is even %}4px 18px 18px 18px{% else %}18px 4px 18px 18px{% endif %}; margin-bottom: 12px;">
+                    <div style="font-weight: 600; font-size: 1.05rem; color: var(--text-main); line-height: 1.6;">{{ quote.content }}</div>
                 </div>
-                <div class="q-analysis-note">
-                    <span class="note-label">>> Miku_Analysis: </span>{{ quote.reason | safe }}
+                
+                <div style="display: inline-block; background: var(--bg-page-base); padding: 12px 18px; border-radius: 12px; border-left: 4px solid var(--miku-pink-light); text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                        <span style="font-size: 1.1rem;">🎵</span>
+                        <span style="font-weight: bold; color: var(--miku-dark); font-size: 0.95rem;">Miku 锐评</span>
+                    </div>
+                    <div style="font-size: 0.9rem; color: var(--text-sub); line-height: 1.6;">{{ quote.reason | safe }}</div>
                 </div>
             </div>
         </div>
