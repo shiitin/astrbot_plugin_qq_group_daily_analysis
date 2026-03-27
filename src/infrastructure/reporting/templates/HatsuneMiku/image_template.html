@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miku's Daily Analysis · {{current_date}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* 初音未来专属调色板 */
+            --bg-paper: #f4fbfb;
+            --ink-primary: #1a3c3a;
+            --ink-secondary: #00838f;
+
+            --color-miku: #39C5BB;
+            --color-pink: #ff007f;
+            --color-dark: #333333;
+            --color-light-teal: #e0f2f1;
+            
+            --color-yellow: #fff9c4;
+            --accent-orange: #ff007f; /* 替换为粉色作为强调色 */
+
+            --mbti-bg: #e0f2f1;
+            --mbti-border: #39C5BB;
+            --mbti-text: #006064;
+
+            --title-bg: #ffe4e1;
+            --title-border: #ff007f;
+            --title-text: #c2185b;
+
+            --font-title: 'ZCOOL KuaiLe', cursive;
+            --font-hand: 'Share Tech Mono', monospace; /* 数码感字体 */
+            --font-body: 'Noto Sans SC', sans-serif;
+            
+            --accent-glow: 0 0 10px rgba(57, 197, 187, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            color: var(--ink-primary);
+            background-color: var(--bg-paper);
+            background-image: 
+                linear-gradient(rgba(57, 197, 187, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(57, 197, 187, 0.08) 1px, transparent 1px);
+            background-size: 20px 20px;
+            min-height: 100vh;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+
+        .doodle { width: 1em; height: 1em; fill: currentColor; display: inline-block; vertical-align: middle; }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            position: relative;
+            background: #ffffff;
+            border: 2px solid var(--color-miku);
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 8px 8px 0 var(--color-light-teal), 0 20px 40px rgba(0, 0, 0, 0.05);
+        }
+
+        .container::before {
+            content: "";
+            position: absolute;
+            top: 6px; bottom: 6px; left: 6px; right: 6px;
+            border: 1px dashed var(--color-miku);
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        /* 头部设计 - 舞台显示屏风格 */
+        .header { text-align: center; margin-bottom: 50px; position: relative; padding-top: 20px; }
+        
+        .title-sticker {
+            display: inline-block;
+            background: var(--color-dark);
+            padding: 20px 60px;
+            border-left: 8px solid var(--color-miku);
+            border-right: 8px solid var(--color-pink);
+            border-radius: 4px;
+            box-shadow: var(--accent-glow);
+            position: relative;
+            color: white;
+        }
+
+        .title-sticker h1 {
+            font-family: var(--font-title);
+            font-size: 2.8rem;
+            color: var(--color-miku);
+            margin: 0;
+            text-shadow: 0 0 5px rgba(57, 197, 187, 0.8);
+        }
+
+        .date-badge {
+            position: absolute;
+            bottom: -15px;
+            right: -20px;
+            background: var(--color-pink);
+            color: white;
+            padding: 5px 15px;
+            font-family: var(--font-hand);
+            font-size: 1.2rem;
+            box-shadow: 2px 2px 0 var(--color-dark);
+        }
+
+        /* 统计区块 */
+        .stats-wrapper { display: flex; gap: 25px; margin-bottom: 40px; align-items: stretch; }
+        .stats-grid { flex: 2; display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        
+        .stamp {
+            background: #fff;
+            padding: 15px;
+            border: 2px solid var(--color-light-teal);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stamp::before {
+            content: "01";
+            position: absolute;
+            top: -5px; right: 5px;
+            font-family: var(--font-hand);
+            font-size: 3rem;
+            color: rgba(57, 197, 187, 0.05);
+            font-style: italic;
+        }
+
+        .stamp:hover { transform: translateY(-2px); border-color: var(--color-miku); }
+        .stamp-inner { text-align: center; z-index: 1; }
+        .stamp-num { font-family: var(--font-hand); font-size: 1.8rem; color: var(--color-pink); font-weight: bold; margin: 5px 0; }
+        .stamp-label { font-family: var(--font-body); font-size: 0.9rem; color: var(--ink-secondary); font-weight: bold; }
+
+        .highlight-section {
+            flex: 1;
+            background: var(--color-miku);
+            color: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 6px 6px 0 var(--color-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .time-big { font-family: var(--font-hand); font-size: 2.5rem; font-weight: bold; margin: 10px 0; text-shadow: 2px 2px 0 var(--color-pink); }
+        .time-desc { font-family: var(--font-body); font-size: 1.2rem; }
+
+        .grid-layout { display: grid; grid-template-columns: repeat(12, 1fr); gap: 30px; }
+        .section-title { font-family: var(--font-title); font-size: 1.5rem; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; color: var(--color-miku); }
+
+        /* 图表区 */
+        .chart-section {
+            grid-column: span 12;
+            background: #fff;
+            border: 2px solid var(--color-light-teal);
+            border-radius: 4px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .chart-section-horizontal {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            height: 220px; padding: 20px 10px 5px 10px; margin-top: 15px;
+            border-bottom: 2px solid var(--color-miku);
+        }
+
+        .chart-column { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; margin: 0 2px; position: relative; }
+        .chart-bar-vertical { width: 100%; border-radius: 2px 2px 0 0; min-height: 4px; transition: height 0.3s ease; }
+        .chart-label-xaxis { margin-top: 8px; font-size: 0.75rem; color: var(--ink-secondary); font-family: var(--font-hand); }
+        .chart-value-top { position: absolute; top: -20px; font-size: 0.7rem; font-weight: bold; color: var(--color-pink); font-family: var(--font-hand); }
+
+        /* 底部信息卡片 */
+        .footer {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 20px;
+            background: var(--color-dark);
+            border-radius: 4px;
+            color: white;
+        }
+
+        .footer-card {
+            background: transparent;
+            border-left: 4px solid var(--color-miku);
+            padding: 10px 15px;
+            font-family: var(--font-hand);
+            flex: 1;
+        }
+
+        .footer-card-title { color: var(--color-miku); font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+        .footer-card-content { font-size: 0.85rem; color: #ccc; }
+        .footer-card.repo-card { border-left-color: var(--color-pink); }
+        .footer-card.stats-card { border-left-color: var(--color-light-teal); }
+
+        @media (max-width: 768px) {
+            .grid-layout { display: flex; flex-direction: column; }
+            .stats-wrapper { flex-direction: column; }
+            .footer { flex-direction: column; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title-sticker">
+                <h1>🎵 大家的歌姬 · 群聊日常分析 🎵</h1>
+                <div class="date-badge">BPM: 139 | {{current_date}}</div>
+            </div>
+        </div>
+
+        <div class="stats-wrapper">
+            <div class="stats-grid">
+                <div class="stamp">
+                    <div class="stamp-inner">
+                        <div class="stamp-num">{{message_count}}</div>
+                        <div class="stamp-label">Total Messages</div>
+                    </div>
+                </div>
+                <div class="stamp">
+                    <div class="stamp-inner">
+                        <div class="stamp-num">{{participant_count}}</div>
+                        <div class="stamp-label">Active Singers</div>
+                    </div>
+                </div>
+                <div class="stamp">
+                    <div class="stamp-inner">
+                        <div class="stamp-num">{{emoji_count}}</div>
+                        <div class="stamp-label">Expressions</div>
+                    </div>
+                </div>
+                <div class="stamp">
+                    <div class="stamp-inner">
+                        <div class="stamp-num">{{total_characters}}</div>
+                        <div class="stamp-label">Total Chars</div>
+                    </div>
+                </div>
+            </div>
+            <div class="highlight-section">
+                <div style="font-family: var(--font-body); font-weight: bold; margin-bottom: 5px;">✨ Vocaloid Live Time</div>
+                <div class="time-big">{{most_active_period}}</div>
+                <div class="time-desc">此刻，弹幕最为密集</div>
+            </div>
+        </div>
+
+        <div class="grid-layout">
+            <div class="chart-section">
+                <div class="section-title">📊 24H 活跃音轨 (Audio Track)</div>
+                <div style="margin-top: 15px;">
+                    {{hourly_chart_html | safe}}
+                </div>
+            </div>
+
+            {{topics_html | safe}}
+            {{titles_html | safe}}
+            {{quotes_html | safe}}
+
+            {% if chat_quality_html %}
+            <div style="grid-column: span 12; margin-top: 20px;">
+                <div class="section-title">🎤 舞台表现锐评</div>
+                {{ chat_quality_html | safe }}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <div class="footer-card info-card">
+                <div class="footer-card-title">PROJECT: MIKU</div>
+                <div class="footer-card-content">
+                    <p>{{current_datetime}}</p>
+                    <p>AstrBot 群分析总结插件</p>
+                </div>
+            </div>
+            <div class="footer-card repo-card">
+                <div class="footer-card-title">SOURCE CODE</div>
+                <div class="footer-card-content">
+                    <p>SXP-Simon/astrbot_plugin_qq_group_daily_analysis</p>
+                </div>
+            </div>
+            <div class="footer-card stats-card">
+                <div class="footer-card-title">AI SYSTEM</div>
+                <div class="footer-card-content">
+                    <p>Total Tokens: {{total_tokens}}</p>
+                    <p>P/C: {{prompt_tokens}}/{{completion_tokens}}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

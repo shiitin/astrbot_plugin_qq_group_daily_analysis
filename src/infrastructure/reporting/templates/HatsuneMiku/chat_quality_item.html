@@ -1,0 +1,49 @@
+<style>
+    .quality-item { background: #fff; border: 2px solid var(--color-miku); border-radius: 4px; padding: 25px; position: relative; box-shadow: 6px 6px 0 var(--color-light-teal); }
+    .quality-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px dashed var(--color-light-teal); padding-bottom: 10px; }
+    .time-range { font-family: var(--font-hand); font-size: 1.2rem; color: var(--ink-secondary); font-weight: bold; }
+    .theme-title-badge { font-family: var(--font-title); background: var(--color-miku); color: white; padding: 6px 20px; font-size: 1.5rem; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+    .dimension-bar-container { margin: 20px 0; background: var(--bg-paper); border-radius: 2px; overflow: hidden; display: flex; height: 30px; }
+    .dimension-segment { height: 100%; display: flex; justify-content: center; align-items: center; color: white; font-size: 0.85rem; font-family: var(--font-hand); font-weight: bold; text-shadow: 1px 1px 0 rgba(0,0,0,0.3); }
+    .dimension-comments-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px; }
+    .dim-sticker { background: var(--bg-paper); border-left: 4px solid var(--color-miku); padding: 12px; font-size: 0.9rem; color: var(--ink-primary); border-radius: 0 4px 4px 0; }
+    .dim-sticker-title { font-family: var(--font-hand); font-weight: bold; display: block; margin-bottom: 4px; }
+    .speech-bubble-review { background: var(--color-dark); color: white; padding: 20px; border-radius: 4px; border-left: 6px solid var(--color-pink); font-family: var(--font-body); font-size: 1.1rem; line-height: 1.6; }
+</style>
+
+<div class="quality-item">
+    <div class="quality-header">
+        <div class="theme-title-badge">{{ title }}</div>
+        <div class="time-range">{{ subtitle }}</div>
+    </div>
+
+    <div class="dimension-bar-container">
+        {% set colors = ['#39C5BB', '#FF007F', '#00838f', '#4DD0E1', '#c2185b', '#80CBC4'] %}
+        {% for dim in dimensions %}
+        {% set safe_percentage = dim.percentage|float %}
+        {% if safe_percentage > 0 %}
+        <div class="dimension-segment" style="width: {{ safe_percentage }}%; background-color: {{ colors[loop.index0 % colors|length] }};" title="{{ dim.comment }}">
+            {{ dim.name }}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="dimension-comments-grid">
+        {% set colors = ['#39C5BB', '#FF007F', '#00838f', '#4DD0E1', '#c2185b', '#80CBC4'] %}
+        {% for dim in dimensions %}
+        {% set safe_percentage = dim.percentage|float %}
+        {% if safe_percentage > 0 %}
+        <div class="dim-sticker" style="border-color: {{ colors[loop.index0 % colors|length] }};">
+            <span class="dim-sticker-title" style="color: {{ colors[loop.index0 % colors|length] }};">[{{ dim.name }}] - {{ '%.1f'|format(safe_percentage) }}%</span>
+            <span>{{ dim.comment }}</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="speech-bubble-review">
+        <span style="color: var(--color-miku); font-family: var(--font-hand); font-weight: bold; display: block; margin-bottom: 8px;">>> MIKU_SYS_SUMMARY:</span>
+        {{ summary }}
+    </div>
+</div>

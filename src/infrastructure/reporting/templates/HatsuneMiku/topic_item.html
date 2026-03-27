@@ -1,0 +1,28 @@
+{% if topics %}
+<style>
+    .topic-section { grid-column: span 12; background: #fff; padding: 30px; border-left: 6px solid var(--color-miku); border-radius: 4px; box-shadow: 4px 4px 0 var(--color-light-teal); }
+    .topic-item { display: flex; align-items: flex-start; margin-bottom: 20px; padding: 15px; background: var(--bg-paper); border-radius: 4px; }
+    .play-btn { width: 24px; height: 24px; background: var(--color-miku); clip-path: polygon(0 0, 0 100%, 100% 50%); margin-right: 15px; margin-top: 4px; flex-shrink: 0; }
+    .topic-content { flex: 1; }
+    .topic-title { font-family: var(--font-title); font-size: 1.4rem; color: var(--ink-primary); border-bottom: 2px solid var(--color-pink); padding-bottom: 2px; display: inline-block; }
+    .topic-detail { font-family: var(--font-body); color: #444; font-size: 1.1rem; margin-top: 10px; }
+</style>
+<div class="topic-section">
+    <div class="section-title">🎵 歌单精选 Topics</div>
+    {% for topic in topics %}
+    <div class="topic-item">
+        <div class="play-btn"></div>
+        <div class="topic-content">
+            <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;">
+                <span class="topic-title">{{ topic.topic.topic }}</span>
+                <span style="font-family: var(--font-hand); color: var(--color-miku); font-weight: bold;">TRACK_{{ "%02d"|format(topic.index) }}</span>
+            </div>
+            <div style="font-family: var(--font-hand); font-size: 0.9em; color: var(--ink-secondary); margin-bottom: 8px;">
+                VOCALS: {{ topic.contributors }}
+            </div>
+            <div class="topic-detail">{{ topic.detail | safe }}</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

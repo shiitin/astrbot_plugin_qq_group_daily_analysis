@@ -1,0 +1,49 @@
+{% if titles %}
+<style>
+    .user-section { grid-column: span 12; margin-top: 10px; }
+    .masonry-grid { column-count: 2; column-gap: 25px; }
+    .user-card { 
+        break-inside: avoid; background: #fff; border: 1px solid var(--color-light-teal); 
+        border-left: 6px solid var(--color-miku); border-radius: 4px; padding: 20px; 
+        margin-bottom: 25px; position: relative; overflow: hidden; transition: 0.2s;
+    }
+    .user-card::after {
+        content: "01"; position: absolute; bottom: -10px; right: 5px;
+        font-family: var(--font-hand); font-size: 4rem; font-style: italic;
+        color: rgba(57, 197, 187, 0.05); z-index: 0; pointer-events: none;
+    }
+    .user-card:hover { border-left-color: var(--color-pink); transform: translateX(4px); box-shadow: 4px 4px 0 var(--color-light-teal); }
+    .user-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; position: relative; z-index: 1; }
+    .u-avatar { width: 50px; height: 50px; border-radius: 4px; border: 2px solid var(--color-miku); overflow: hidden; flex-shrink: 0; }
+    .u-name { font-family: var(--font-title); font-size: 1.2rem; color: var(--color-dark); }
+    .badges { display: flex; gap: 6px; margin-top: 4px; }
+    .badge { font-size: 0.8rem; padding: 2px 6px; border-radius: 2px; font-family: var(--font-hand); }
+    .badge.title { background: var(--color-pink); color: white; }
+    .badge.mbti { background: var(--color-dark); color: var(--color-miku); border: 1px solid var(--color-miku); }
+    .u-reason { font-family: var(--font-body); font-size: 1rem; color: #555; background: var(--bg-paper); padding: 10px; border-radius: 4px; position: relative; z-index: 1; }
+</style>
+<div class="user-section">
+    <div class="section-title">👥 歌手图鉴 Portraits</div>
+    <div class="masonry-grid">
+        {% for title in titles %}
+        <div class="user-card">
+            <div class="user-header">
+                <div class="u-avatar">
+                    {% if title.avatar_data %}
+                    <img src="{{ title.avatar_data }}" alt="头像" style="width: 100%; height: 100%; object-fit: cover;">
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="u-name">{{ title.name }}</div>
+                    <div class="badges">
+                        <span class="badge title">{{ title.title }}</span>
+                        <span class="badge mbti">{{ title.mbti }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="u-reason">{{ title.reason }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
