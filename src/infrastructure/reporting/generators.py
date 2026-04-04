@@ -455,7 +455,7 @@ class ReportGenerator(IReportGenerator):
 
             return str(html_path.absolute()), str(json_path.absolute())
 
-                except Exception as e:
+        except Exception as e:
             logger.error(f"生成 HTML 报告失败: {e}", exc_info=True)
             return None, None
 
