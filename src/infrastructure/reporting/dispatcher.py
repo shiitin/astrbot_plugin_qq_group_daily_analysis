@@ -116,6 +116,8 @@ class ReportDispatcher:
     ) -> bool:
         trace_id = TraceContext.get()
 
+        logger.warn(''逻辑判断被加载'')
+
         html_path = None
         try:
             html_path, json_path = await self.report_generator.generate_html_report(
