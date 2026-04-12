@@ -41,6 +41,7 @@ class ReportDispatcher:
         """
         trace_id = TraceContext.get()
         output_format = self.config_manager.get_output_format()
+
         logger.info(
             f"[{trace_id}] 正在分发群 {group_id} 的报告 (格式: {output_format})"
         )
@@ -115,8 +116,6 @@ class ReportDispatcher:
         self, group_id: str, analysis_result: dict[str, Any], platform_id: str | None
     ) -> bool:
         trace_id = TraceContext.get()
-
-        logger.warn("逻辑判断被加载")
 
         html_path = None
         try:
