@@ -273,13 +273,26 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 
 ### 11.1 报告语言
 
-- 配置项：`_conf_schema.json` → `t2i_rendering.report_language`，取值 `auto` / `zh-Hans` /
-  `zh-Hant` / `en` / `ja`，默认 `auto`（不干预，与历史版本逐字节一致）。
+- 配置项：`_conf_schema.json` → `basic.report_language`（紧跟 `report_template`，仅 HatsuneMiku
+  模板可见），取值 `auto` / `zh-Hans` / `zh-Hant` / `en` / `ja`，默认 `auto`。
+- `auto` = **按群聊消息正文自动判断**（不是「不干预」）：
+  1. 先剥离非正文噪音（媒体占位整行、链接、`[CQ:...]`、方括号占位词、`@提及` 里的 ID）——
+     昵称/贴纸名不算语言证据（真实场景：群友昵称就是三个平假名）；
+  2. 每条有语言证据的正文投一票（出现假名 → ja；拉丁多于汉字 → en；否则有汉字 → zh）；
+  3. 某一语言票数占比 **超过 70%** 且样本足够（≥3 条正文、≥20 个语言字符）才判定，
+     否则不干预（混合语群不猜，走历史行为）；
+  4. 中文再判简繁：**字形特征字 + 用词差异**合议——用词（应用程式/应用程序、资讯/信息、
+     影片/视频…）会先折算成简体再比对，所以「用简体字写的台湾用词」同样算繁中；
+     香港粤语用字（嘅/咗/唔/冇…）也算繁中。繁体分数更高且 ≥4 分 → `zh-Hant`，否则 `zh-Hans`。
+- 字表/词表在 `src/shared/zh_variant_tables.py`（**自动生成，别手改**；数据来自 OpenCC，
+  Apache-2.0）：约 2700 组简繁特征字 + 约 840 个繁中侧用词 + 约 820 个大陆侧用词 + 粤语常用字；
+  重新生成：`python scripts/gen_zh_variant_tables.py`（可用 `--dict-dir` 指向本地字典）。
 - 作用面三处：① 模板骨架文案、页面语言声明与字体优先级；② 报告日期格式；③ LLM 撰写的解说文案
   （唯一注入点在 `call_provider_with_retry`，覆盖全部分析器）。
 - 引用保护：注入的指令强制要求「引用群友原话 / 昵称 / 群名 / @ / 链接 / JSON 字段名」原样保留，
   不得翻译或改写；报告语言只作用于解说文案。
-- 模板侧：渲染上下文带 `report_language`，模板自解释（`auto` 时不下发值）。
+- 模板侧：渲染上下文带 `report_language`，模板自解释（`auto` 未命中时不下发值）。
+- 观测：分析服务会打一行 `报告语言自动判断(auto): <语言>`，验收直接 grep 这行。
 
 ### 11.2 新增一个多语言模板要动哪些地方
 

@@ -371,7 +371,7 @@ class AnalysisApplicationService:
                 max(len(raw_messages) - len(unified_messages), 0),
             )
             logger.info(
-                "报告语言自动判断(auto): %s（依据群聊消息字符构成；未命中则不干预）",
+                "报告语言自动判断(auto): %s（按群聊正文投票，某语言占比 >70% 才判；未命中则不干预）",
                 detected_language or "未命中",
             )
 

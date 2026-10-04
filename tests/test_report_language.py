@@ -282,6 +282,96 @@ def test_english_group_with_chinese_smattering_stays_english() -> None:
     assert detect_language_from_messages(texts) == "en"
 
 
+_MAINLAND_GROUP = [
+    "这个应用程序很好用",
+    "我查一下信息",
+    "软件更新完了",
+    "视频下载好了",
+    "鼠标坏了",
+    "我的账号登录不了",
+    "屏幕有点暗",
+    "数据存在数据库里",
+    "我在写程序",
+    "缓存清一下",
+]
+
+_TAIWAN_WORDING_SIMPLIFIED_CHARS = [
+    "我在用应用程式",
+    "我查一下资讯",
+    "软体更新完了",
+    "影片下载好了",
+    "滑鼠坏了",
+    "我的帐号登入不了",
+    "萤幕有点暗",
+    "资料存在资料库里",
+    "我在写程式",
+    "快取清一下",
+]
+
+_TAIWAN_WORDING_TRADITIONAL_CHARS = [
+    "我在用應用程式",
+    "我查一下資訊",
+    "軟體更新完了",
+    "影片下載好了",
+    "滑鼠壞了",
+    "我的帳號登入不了",
+    "螢幕有點暗",
+    "資料存在資料庫裡",
+    "我在寫程式",
+    "快取清一下",
+]
+
+
+def test_variant_taiwanese_wording_written_in_simplified_chars() -> None:
+    """台湾用词即使写成简体字，也按繁中（台湾）语境判——用户明确要求这一点。"""
+    assert detect_language_from_messages(_TAIWAN_WORDING_SIMPLIFIED_CHARS) == "zh-Hant"
+
+
+def test_variant_taiwanese_wording_in_traditional_chars() -> None:
+    assert detect_language_from_messages(_TAIWAN_WORDING_TRADITIONAL_CHARS) == "zh-Hant"
+
+
+def test_variant_mainland_wording_stays_simplified() -> None:
+    """大陆用词的群不能被带上繁体。"""
+    assert detect_language_from_messages(_MAINLAND_GROUP) == "zh-Hans"
+
+
+def test_variant_single_taiwanese_word_is_not_enough() -> None:
+    """孤立一个「应用程式」不够定案（最小证据量），其余都是大陆用词时仍按简体。"""
+    group = [
+        "好的",
+        "在吗",
+        "我来了",
+        "这个应用程序很好用",
+        "应用程式",
+    ]
+    assert detect_language_from_messages(group) == "zh-Hans"
+
+
+def test_variant_traditional_characters_without_wording() -> None:
+    """纯字形证据（没有台湾用词）同样能判出繁体。"""
+    group = [
+        "今天天氣很好，我想去臺北逛逛",
+        "這個遊戲的畫質還不錯",
+        "不過我還沒玩過",
+        "你們那邊現在幾點",
+    ]
+    assert detect_language_from_messages(group) == "zh-Hant"
+
+
+def test_variant_cantonese_hong_kong() -> None:
+    """香港粤语用字（嘅/咗/唔/冇…）算繁中语境。"""
+    group = [
+        "係咁先啦",
+        "我等陣間再上線",
+        "你食咗飯未",
+        "呢個遊戲幾好玩",
+        "唔該晒你",
+        "我聽日返工",
+    ]
+    assert detect_language_from_messages(group) == "zh-Hant"
+
+
 def test_resolve_auto_uses_detected_language() -> None:
     cfg = FakeConfigManager(language="auto")
     remember_detected_language("en")

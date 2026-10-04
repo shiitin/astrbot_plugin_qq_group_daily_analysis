@@ -26,6 +26,16 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+#: 简繁判定用的字表 / 词表（OpenCC 生成，见 scripts/gen_zh_variant_tables.py）
+from .zh_variant_tables import (
+    SIMP_SIDE_WORDS,
+    TRAD_SIDE_WORDS,
+    TRAD_TO_SIMP_FROM,
+    TRAD_TO_SIMP_TO,
+    VARIANT_SIMPLIFIED,
+    VARIANT_TRADITIONAL,
+)
+
 #: 默认值：保持历史行为（骨架简体、页面声明跟随渲染环境、LLM 自由发挥）
 AUTO = "auto"
 
@@ -78,22 +88,37 @@ _MEDIA_LINE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-#: 简繁特征字对（简体 繁体，均为常用高频且互不通用的字）：用于中文内部区分简繁
-_SIMPLIFIED_TRADITIONAL_PAIRS = (
-    "们們 这這 说說 国國 后後 么麼 会會 来來 时時 个個 为為 对對 开開 关關 书書 车車 长長 门門 问問 间間 见見"
-    " 东東 风風 飞飛 马馬 鸟鳥 鱼魚 电電 话話 语語 请請 谢謝 爱愛 号號 数數 无無 应應 尔爾 头頭 发髮 让讓"
-    " 点點 过過 还還 进進 运運 动動 学學 觉覺 与與 万萬 亿億 众眾 体體 军軍 农農 识識 记記 论論 读讀 谁誰"
-    " 课課 买買 卖賣 钱錢 银銀 铁鐵 钢鋼 药藥 医醫 图圖 团團 员員 场場 坏壞 块塊 认認 单單 兰蘭 兴興 养養"
-    " 忆憶 习習 续續 断斷 网網 织織 级級 约約 给給 结結 终終 经經 统統 绿綠 红紅 纪紀 货貨 达達 迁遷 选選"
-    " 适適 针針 钟鐘 锁鎖 链鏈 镜鏡 队隊 阳陽 阴陰 际際 陆陸 陈陳 难難 雾霧 顺順 须須 顾顧 饮飲 饭飯 馆館"
-    " 驾駕 验驗 麦麥 黄黃 齐齊 龙龍 龟龜 鸡雞 猪豬 猫貓 汉漢 举舉 义義 乐樂 书書 云雲 亚亞 产產 亲親 儿兒"
-)
-_SIMPLIFIED_ONLY = frozenset(
-    pair[0] for pair in _SIMPLIFIED_TRADITIONAL_PAIRS.split() if len(pair) == 2
-)
-_TRADITIONAL_ONLY = frozenset(
-    pair[1] for pair in _SIMPLIFIED_TRADITIONAL_PAIRS.split() if len(pair) == 2
-)
+#: 简繁 1:1 特征字集合（互不通用：谁出现得多，就说明正文是谁）
+_SIMPLIFIED_ONLY = frozenset(VARIANT_SIMPLIFIED)
+_TRADITIONAL_ONLY = frozenset(VARIANT_TRADITIONAL)
+
+#: 观测文本与词表统一折算成简体再比对——这样「应用程式」这种**用简体字写的台湾用词**
+#: 也能命中词表（用户明确要求：不管写成简繁，用词是繁中语境就算繁中）。
+_TRAD_TO_SIMP = str.maketrans(TRAD_TO_SIMP_FROM, TRAD_TO_SIMP_TO)
+
+#: 每个「用词」命中的分量：一个词抵 3 个特征字——用词比单字强得多
+_WORD_HIT_WEIGHT = 3
+#: 繁体 / 简体的最小证据量，不够就按简体（历史默认）
+_MIN_VARIANT_EVIDENCE = 4
+
+
+def _compile_words(words: tuple[str, ...]) -> re.Pattern[str] | None:
+    """把词表编译成一个「长词优先」的正则，避免短词重复计数（如「程式」吃掉「应用程式」）。"""
+    ordered = sorted(set(words), key=len, reverse=True)
+    if not ordered:
+        return None
+    return re.compile("|".join(re.escape(word) for word in ordered))
+
+
+_TRAD_SIDE_PATTERN = _compile_words(TRAD_SIDE_WORDS)
+_SIMP_SIDE_PATTERN = _compile_words(SIMP_SIDE_WORDS)
+
+
+def _count_word_hits(pattern: re.Pattern[str] | None, text: str) -> int:
+    """数一段文本命中了多少个繁中侧 / 大陆侧用词。"""
+    if pattern is None or not text:
+        return 0
+    return sum(1 for _ in pattern.finditer(text))
 
 
 def _count_scripts(text: str) -> dict[str, int]:
@@ -120,17 +145,36 @@ def _count_scripts(text: str) -> dict[str, int]:
 
 
 def _detect_chinese_variant(text: str) -> str:
-    """区分简体/繁体：按特征字计数，证据不足时按简体（历史默认）。
+    """判断一段中文是简体还是繁体语境。
+
+    两路证据相加后比大小（用户定的口径：用词也算数，哪怕写成简体字）：
+
+    1. **字形**：数简繁特征字（互不通用的字，如 们/們、这/這）——传统繁体文本里
+       繁体特征字自然会多；
+    2. **用词**：把正文与词表都折成简体后比对（所以「应用程式」不管写成简繁都命中），
+       命中一个繁中侧用词算 3 个特征字——用词差异（应用程式/应用程序、资讯/信息）
+       是比单字强得多的证据。
+
+    繁体分更高且达到最小证据量 → ``zh-Hant``，否则 ``zh-Hans``（历史默认）。
 
     Args:
-        text: 中文文本。
+        text: 中文文本（整群正文合并后的文本）。
 
     Returns:
         ``zh-Hant`` 或 ``zh-Hans``。
     """
+    if not text:
+        return "zh-Hans"
     simplified = sum(1 for ch in text if ch in _SIMPLIFIED_ONLY)
     traditional = sum(1 for ch in text if ch in _TRADITIONAL_ONLY)
-    if traditional >= 3 and traditional > simplified:
+    normalized = text.translate(_TRAD_TO_SIMP)
+    trad_score = traditional + _WORD_HIT_WEIGHT * _count_word_hits(
+        _TRAD_SIDE_PATTERN, normalized
+    )
+    simp_score = simplified + _WORD_HIT_WEIGHT * _count_word_hits(
+        _SIMP_SIDE_PATTERN, normalized
+    )
+    if trad_score >= _MIN_VARIANT_EVIDENCE and trad_score > simp_score:
         return "zh-Hant"
     return "zh-Hans"
 
