@@ -34,7 +34,10 @@ def main() -> int:
     """同步 condition 名单；返回 0 表示（同步后）一致，1 表示读取失败。"""
     try:
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:  # pragma: no cover - 只在文件损坏时触发
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:  # pragma: no cover - 只在文件损坏时触发
         print(f"读取 {SCHEMA} 失败：{exc}")
         return 1
 

@@ -118,7 +118,11 @@ def check_schema() -> None:
     )
 
     # 反向保险丝：不许再出现自造键（这次整改的教训固化成检查）
-    invented = [key for key in ("visible_when", "option_labels", '"hidden"') if key in schema_text]
+    invented = [
+        key
+        for key in ("visible_when", "option_labels", '"hidden"')
+        if key in schema_text
+    ]
     check(
         "schema: 不含自造键（visible_when / option_labels / hidden）",
         not invented,

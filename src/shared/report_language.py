@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from contextvars import ContextVar
 from datetime import datetime
@@ -35,6 +36,8 @@ from .zh_variant_tables import (
     VARIANT_SIMPLIFIED,
     VARIANT_TRADITIONAL,
 )
+
+logger = logging.getLogger(__name__)
 
 #: 默认值：保持历史行为（骨架简体、页面声明跟随渲染环境、LLM 自由发挥）
 AUTO = "auto"
@@ -352,10 +355,16 @@ def is_language_aware_template(config_manager: object) -> bool:
 
     Returns:
         模板名已知时按 ``LANGUAGE_AWARE_TEMPLATES`` 判定；模板名未知（如离线调试/单测
-        Mock 未提供模板信息）时返回 ``True``，保持历史行为、不误伤既有调用方。
+        Mock 未提供模板信息）时返回 ``True``，保持历史行为、不误伤既有调用方，
+        并打一条 WARNING 说明门禁被绕过（配置读取异常时可能产出「骨架中文 + 解说外语」
+        的半成品，便于排查）。
     """
     template = current_report_template(config_manager)
     if template is None:
+        logger.warning(
+            "报告语言白名单门禁未生效：读不到当前报告模板名，按放行处理"
+            "（可能产出「骨架中文 + 解说外语」的半成品，请检查配置读取）"
+        )
         return True
     return template in LANGUAGE_AWARE_TEMPLATES
 

@@ -1,10 +1,11 @@
 """报告语言（report_language）单元测试。
 
-覆盖：配置解析、模板门禁、提示词注入幂等、日期格式化。
+覆盖：配置解析、模板门禁、提示词注入幂等、日期格式化、auto 判据、多群并发不串扰。
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 import pytest
@@ -483,3 +484,63 @@ def test_language_golden_cases(case: dict) -> None:
         f"用例「{case.get('name')}」判定结果与预期不符；"
         "想看判定过程跑 python scripts/debug_render.py --detect-file <每行一条消息的文件>"
     )
+
+
+# ---------------------------------------------------------------------------
+# 多群并发：auto 检测结果靠 ContextVar 承载，必须「每组一份」，不能跨群串扰
+# （调度器对每个群各起一个 asyncio.create_task；这里用 gather 模拟同一事件循环里并发）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_concurrent_groups_do_not_cross_languages() -> None:
+    """两个群并发分析时，各自的检测结果互不污染。"""
+    zh_messages = ["大家一起打排位吧", "昨天那个活动真好玩", "我明天要上班"]
+    en_messages = [
+        "let us play ranked together",
+        "the event yesterday was fun",
+        "i have to work tomorrow",
+    ]
+
+    async def run_group(messages: list[str]) -> str | None:
+        apply_auto_language_detection(messages)
+        # 让另一组在这中间写入自己的结果；若 ContextVar 不是任务级隔离，这里就会被串改
+        await asyncio.sleep(0.02)
+        return get_detected_language()
+
+    zh_language, en_language = await asyncio.gather(
+        run_group(zh_messages), run_group(en_messages)
+    )
+    assert zh_language == "zh-Hans"
+    assert en_language == "en"
+
+
+@pytest.mark.asyncio
+async def test_group_without_evidence_keeps_its_own_empty_result() -> None:
+    """证据不足的群拿到 None（不干预），不会继承并发兄弟群的语言。"""
+    zh_messages = ["大家一起打排位吧", "昨天那个活动真好玩", "我明天要上班"]
+    no_evidence = ["好的", "在吗", "嗯嗯"]
+
+    async def detected_group() -> str | None:
+        apply_auto_language_detection(zh_messages)
+        await asyncio.sleep(0.02)
+        return get_detected_language()
+
+    async def empty_group() -> str | None:
+        await asyncio.sleep(0.01)
+        apply_auto_language_detection(no_evidence)
+        return get_detected_language()
+
+    zh_language, empty_language = await asyncio.gather(detected_group(), empty_group())
+    assert zh_language == "zh-Hans"
+    assert empty_language is None
+
+
+@pytest.mark.asyncio
+async def test_language_is_reset_per_group_analysis() -> None:
+    """同一个事件循环里先后跑两个群（顺序执行）时，后一个群不会被前一个群的结果带跑。"""
+    apply_auto_language_detection(["大家一起打排位吧", "昨天那个活动真好玩", "我明天要上班"])
+    assert get_detected_language() == "zh-Hans"
+
+    apply_auto_language_detection(["好的", "在吗", "嗯嗯"])
+    assert get_detected_language() is None
