@@ -379,6 +379,13 @@ class ConfigManager:
         """获取 T2I 字体源 (Mainland/Overseas)"""
         return self._get_group("t2i_rendering").get("t2i_font_source", "Overseas")
 
+    def get_report_language(self) -> str:
+        """获取报告语言 (auto/zh-Hans/zh-Hant/en)
+
+        auto 表示不干预：模板骨架与 LLM 输出语言均保持历史行为。
+        """
+        return self._get_group("t2i_rendering").get("report_language", "auto")
+
     def get_t2i_google_fonts_mirror(self) -> str:
         """根据环境选择获取 Google Fonts 镜像地址"""
         source = self.get_t2i_font_source()

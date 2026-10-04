@@ -79,6 +79,10 @@ class MockConfigManager:
     def get_report_template(self) -> str:
         return self.template_name
 
+    def get_custom_report_template_dir(self, template_name: str = "") -> None:
+        # 离线调试不加载自定义模板目录，只渲染内置模板
+        return None
+
     def get_max_topics(self) -> int:
         return 8
 
@@ -135,7 +139,14 @@ class MockConfigManager:
         return "https://fonts.gstatic.com"
 
     def get_t2i_font_source(self) -> str:
-        return "Overseas"
+        # 离线渲染默认 Overseas；要复现大陆部署的产物（页面声明 zh-CN）可加环境变量：
+        #   DEBUG_T2I_FONT_SOURCE=Mainland .venv-render/bin/python scripts/debug_render.py ...
+        return os.environ.get("DEBUG_T2I_FONT_SOURCE", "Overseas")
+
+    def get_report_language(self) -> str:
+        # 离线渲染默认 auto（产物与线上一致）；要验证语言切换走真实配置路径：
+        #   DEBUG_REPORT_LANGUAGE=en / zh-Hant .venv-render/bin/python scripts/debug_render.py ...
+        return os.environ.get("DEBUG_REPORT_LANGUAGE", "auto").strip() or "auto"
 
     def get_t2i_rendering_strategies(self) -> list:
         return []
@@ -150,6 +161,7 @@ async def debug_render(
     template_name: str,
     output_file: str = "debug_output.html",
     profile_mode: str = "mbti",
+    template_file: str = "image_template.html",
 ) -> None:
     # 1. Setup Mock Data
     config_manager = MockConfigManager(
@@ -322,9 +334,12 @@ async def debug_render(
         avatar_url_getter=mock_get_user_avatar,
     )
 
+    # 报告语言：由 DEBUG_REPORT_LANGUAGE 驱动 Mock 配置（见 MockConfigManager.get_report_language），
+    # 因此 report_language 与 current_date 都由核心逻辑产出，离线产物与线上走同一条路。
+
     # Use Jinja2 renderer
     final_html = generator.html_templates.render_template(
-        "image_template.html", template_theme=template_name, **render_payload
+        template_file, template_theme=template_name, **render_payload
     )
 
     # 复用最终 HTML 中所有内联头像资源，并注入复用样式
@@ -373,9 +388,16 @@ def main() -> None:
         choices=["mbti", "sbti", "acgti"],
         help="Profile display mode to render (default: mbti)",
     )
+    parser.add_argument(
+        "-f",
+        "--template-file",
+        type=str,
+        default="image_template.html",
+        help="Main template file to render (default: image_template.html)",
+    )
     args = parser.parse_args()
 
-    asyncio.run(debug_render(args.template, args.output, args.mode))
+    asyncio.run(debug_render(args.template, args.output, args.mode, args.template_file))
 
 
 if __name__ == "__main__":
