@@ -8,11 +8,48 @@ import {
   AvailableProvider,
   AvailablePersona,
 } from "../../../entities/config/api/configApi";
-import { PluginSchema } from "../../../entities/config/model/types";
+import { PluginSchema, SchemaFieldItem } from "../../../entities/config/model/types";
 import {
   validateConfigWithZod,
   validateSingleFieldWithZod,
 } from "../../../entities/config/model/validation";
+
+/** 解析 visible_when 依赖项的当前值：支持 "分组.字段" 与跨分组的裸字段名 */
+export function resolveDependencyValue(
+  formData: Record<string, Record<string, unknown>>,
+  key: string,
+): unknown {
+  if (key.includes(".")) {
+    const [groupKey, fieldKey] = key.split(".", 2);
+    return formData[groupKey]?.[fieldKey];
+  }
+  for (const group of Object.values(formData)) {
+    if (group && Object.prototype.hasOwnProperty.call(group, key)) {
+      return group[key];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 字段是否满足显示条件（schema 的 visible_when）。
+ *
+ * 依赖字段当前值命中允许值数组中的任一项即显示；未声明 visible_when 的字段恒显示。
+ * 仅插件自带 HTML 面板实现该规则，AstrBot 原生按键表单会忽略该字段（始终显示）。
+ */
+export function isFieldVisible(
+  item: SchemaFieldItem,
+  formData: Record<string, Record<string, unknown>>,
+): boolean {
+  if (item.invisible || item.hidden) return false;
+  const condition = item.visible_when;
+  if (!condition) return true;
+  return Object.entries(condition).every(([key, allowed]) => {
+    if (!Array.isArray(allowed) || allowed.length === 0) return true;
+    const value = resolveDependencyValue(formData, key);
+    return allowed.some((candidate) => String(candidate) === String(value));
+  });
+}
 
 export function useConfigViewModel(onConfigSaved?: () => void) {
   const [loading, setLoading] = useState(false);
@@ -207,8 +244,8 @@ export function useConfigViewModel(onConfigSaved?: () => void) {
       const groupDesc = group.description || key;
       const items = group.items || {};
 
-      const visibleItems = Object.entries(items).filter(
-        ([, item]) => !item.invisible && !item.hidden
+      const visibleItems = Object.entries(items).filter(([, item]) =>
+        isFieldVisible(item, formData)
       );
 
       let matchCount = 0;
@@ -234,9 +271,9 @@ export function useConfigViewModel(onConfigSaved?: () => void) {
         matchCount: q ? matchCount : undefined,
       };
     });
-  }, [schema, searchQuery]);
+  }, [schema, searchQuery, formData]);
 
-  // 当前激活分组的字段列表（应用搜索过滤，并过滤 invisible/hidden 隐藏兼容项）
+  // 当前激活分组的字段列表（应用搜索过滤，并过滤 invisible/hidden 与 visible_when 条件隐藏项）
   const currentGroupFields = useMemo(() => {
     if (!schema[activeCategory]) return [];
     const q = searchQuery.trim().toLowerCase();
@@ -244,8 +281,8 @@ export function useConfigViewModel(onConfigSaved?: () => void) {
 
     return Object.entries(groupItems)
       .filter(([fieldKey, item]) => {
-        // 过滤 schema 中声明为不可见或废弃迁移项
-        if (item.invisible || item.hidden) return false;
+        // 过滤 schema 中声明为不可见、废弃迁移项或当前不满足 visible_when 的字段
+        if (!isFieldVisible(item, formData)) return false;
         if (!q) return true;
         const desc = (item.description || "").toLowerCase();
         const hint = (item.hint || "").toLowerCase();

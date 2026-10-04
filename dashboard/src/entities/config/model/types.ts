@@ -16,6 +16,8 @@ export interface SchemaFieldItem {
   hint?: string;
   default?: unknown;
   options?: Array<string | number>;
+  /** 条件显示依赖：声明的字段当前值命中数组内任一值时才显示本字段（仅插件自带面板支持） */
+  visible_when?: Record<string, Array<string | number | boolean>>;
   items?: SchemaFieldItem | Record<string, SchemaFieldItem>;
   templates?: Record<
     string,

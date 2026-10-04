@@ -34,6 +34,13 @@ class ReportLanguageConfig(Protocol):
 #: 允许的报告语言（与 _conf_schema.json 的 options 保持一致）
 REPORT_LANGUAGE_OPTIONS: tuple[str, ...] = (AUTO, "zh-Hans", "zh-Hant", "en", "ja")
 
+#: 已完成多语言适配的模板白名单：只有当前报告模板在此列表内，报告语言才会生效。
+#: 模板骨架文案 / 页面语言声明 / 字体 / 导航短名都要随语言切换，未适配的模板套上语言
+#: 只会出现「骨架中文 + 解说英文」的半成品，所以这里做门禁。
+#: 新增适配模板时**两处都要加**：本常量 + `_conf_schema.json` 中 report_language 的
+#: visible_when 列表（保证「设置项可见」与「设置项生效」一致）。
+LANGUAGE_AWARE_TEMPLATES: tuple[str, ...] = ("HatsuneMiku",)
+
 #: 幂等标记：同一段提示词只注入一次（重试/多段调用不会重复追加）
 REPORT_LANGUAGE_MARK = "【报告语言】"
 
@@ -55,6 +62,41 @@ _LANGUAGE_INSTRUCTION = """【报告语言】
 报告语言只作用于你撰写的解说文案（标题、点评、总结等），不作用于上述引用内容。"""
 
 
+def current_report_template(config_manager: object) -> str | None:
+    """读取当前报告模板名。
+
+    Args:
+        config_manager: 配置管理器（缺少该方法时视为未知环境）。
+
+    Returns:
+        模板名；读取失败或为空时返回 ``None``，表示未知（不做语言门禁）。
+    """
+    getter = getattr(config_manager, "get_report_template", None)
+    if not callable(getter):
+        return None
+    try:
+        value = str(getter() or "").strip()
+    except Exception:  # pragma: no cover - 兼容未实现该方法的测试 Mock
+        return None
+    return value or None
+
+
+def is_language_aware_template(config_manager: object) -> bool:
+    """当前报告模板是否已完成多语言适配。
+
+    Args:
+        config_manager: 配置管理器。
+
+    Returns:
+        模板名已知时按 ``LANGUAGE_AWARE_TEMPLATES`` 判定；模板名未知（如离线调试/单测
+        Mock 未提供模板信息）时返回 ``True``，保持历史行为、不误伤既有调用方。
+    """
+    template = current_report_template(config_manager)
+    if template is None:
+        return True
+    return template in LANGUAGE_AWARE_TEMPLATES
+
+
 def resolve_report_language(config_manager: ReportLanguageConfig) -> str | None:
     """读取并校验报告语言配置。
 
@@ -62,14 +104,18 @@ def resolve_report_language(config_manager: ReportLanguageConfig) -> str | None:
         config_manager: 配置管理器。
 
     Returns:
-        显式选择的语言代码（zh-Hans / zh-Hant / en）；
-        ``auto``、空值或读取失败时返回 ``None``，表示不干预（历史行为）。
+        显式选择的语言代码（zh-Hans / zh-Hant / en / ja）；
+        ``auto``、空值、读取失败或当前模板未适配多语言时返回 ``None``，表示不干预（历史行为）。
     """
     try:
         value = str(config_manager.get_report_language() or "").strip()
     except Exception:  # pragma: no cover - 兼容未实现该方法的测试 Mock
         return None
-    return value if value in _LANGUAGE_NAMES else None
+    if value not in _LANGUAGE_NAMES:
+        return None
+    if not is_language_aware_template(config_manager):
+        return None
+    return value
 
 
 def build_language_instruction(language: str) -> str:

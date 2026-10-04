@@ -268,3 +268,40 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 
 前端改动后需重新构建 dashboard：`cd dashboard && pnpm install && pnpm build`
 （产物输出到 `pages/daily-analysis/`，随包发布的就是该产物）。
+
+## 11. 报告语言（report_language）与设置项条件显示
+
+### 11.1 报告语言
+
+- 配置项：`_conf_schema.json` → `t2i_rendering.report_language`，取值 `auto` / `zh-Hans` /
+  `zh-Hant` / `en` / `ja`，默认 `auto`（不干预，与历史版本逐字节一致）。
+- 作用面三处：① 模板骨架文案、页面语言声明与字体优先级；② 报告日期格式；③ LLM 撰写的解说文案
+  （唯一注入点在 `call_provider_with_retry`，覆盖全部分析器）。
+- 引用保护：注入的指令强制要求「引用群友原话 / 昵称 / 群名 / @ / 链接 / JSON 字段名」原样保留，
+  不得翻译或改写；报告语言只作用于解说文案。
+- 模板侧：渲染上下文带 `report_language`，模板自解释（`auto` 时不下发值）。
+
+### 11.2 新增一个多语言模板要动哪些地方
+
+1. 模板内建语言字典（`en` / `zh-Hant` / `ja` 各列文案齐全），骨架文案按 `REPORT_LANG` 切换；
+2. `src/shared/report_language.py` 的 `LANGUAGE_AWARE_TEMPLATES` 追加模板名——**报告语言只对该白名单生效**
+   （未适配的模板套上语言只会得到「骨架中文 + 解说英文」的半成品，故做门禁）；
+3. `_conf_schema.json` 中 `report_language.visible_when.report_template` 数组追加同一模板名，
+   保证「设置项可见」与「设置项生效」始终一致。
+
+### 11.3 设置项条件显示 `visible_when`（仅插件自带 HTML 面板支持）
+
+```json
+"report_language": {
+  "type": "string",
+  "options": ["auto", "zh-Hans", "zh-Hant", "en", "ja"],
+  "visible_when": {"report_template": ["HatsuneMiku"]}
+}
+```
+
+- 语义：依赖字段的当前值命中数组内任一值时才显示本字段；支持裸字段名（跨分组查找）与
+  `"分组.字段"` 两种写法；多个条件为「与」关系；空数组视为不限制；`invisible` 优先级更高。
+- 实现位置：`dashboard/src/pages/config/model/useConfigViewModel.ts` 的 `isFieldVisible()`；
+  分组侧栏的字段计数与搜索命中数走同一规则，避免出现「侧栏数字 ≠ 实际可见字段数」。
+- 局限：AstrBot **原生按键式配置表单不支持条件显示**（schema 无该能力，`invisible` 是静态隐藏），
+  因此从原生表单进入时该字段始终可见；它只是数据，不生效也不影响保存。
