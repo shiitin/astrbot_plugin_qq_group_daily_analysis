@@ -291,6 +291,9 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 
 ### 11.3 设置项条件显示 `visible_when`（仅插件自带 HTML 面板支持）
 
+配置项位置：`basic.items` 里**紧跟在 `report_template` 之后**（渲染顺序即 JSON 键顺序，
+所以面板上它就显示在「报告模板」正下方，只有选中 HatsuneMiku 时才出现）。
+
 ```json
 "report_language": {
   "type": "string",
