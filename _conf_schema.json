@@ -111,6 +111,13 @@
                     "en",
                     "ja"
                 ],
+                "option_labels": {
+                    "auto": "自动（按群聊判断）",
+                    "zh-Hans": "简体中文",
+                    "zh-Hant": "繁體中文",
+                    "en": "ENGLISH",
+                    "ja": "日本語"
+                },
                 "default": "auto",
                 "visible_when": {
                     "report_template": [

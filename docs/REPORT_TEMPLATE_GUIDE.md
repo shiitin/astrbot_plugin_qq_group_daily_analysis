@@ -328,3 +328,26 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
   分组侧栏的字段计数与搜索命中数走同一规则，避免出现「侧栏数字 ≠ 实际可见字段数」。
 - 局限：AstrBot **原生按键式配置表单不支持条件显示**（schema 无该能力，`invisible` 是静态隐藏），
   因此从原生表单进入时该字段始终可见；它只是数据，不生效也不影响保存。
+
+### 11.4 选项显示名 `option_labels`（同样只有插件自带面板支持）
+
+`options` 里存的是配置真实值（`zh-Hans` / `en` / `ja`…），直接摆给用户看不懂。加一个
+`option_labels` 映射就能只在面板上显示人话，配置里仍然写原始值：
+
+```json
+"report_language": {
+  "options": ["auto", "zh-Hans", "zh-Hant", "en", "ja"],
+  "option_labels": {
+    "auto": "自动（按群聊判断）",
+    "zh-Hans": "简体中文",
+    "zh-Hant": "繁體中文",
+    "en": "ENGLISH",
+    "ja": "日本語"
+  }
+}
+```
+
+- 实现：`dashboard/src/entities/config/model/optionLabels.ts` 的 `resolveOptionLabel()`，
+  由 `FieldRenderer` 的单选下拉分支使用；纯显示层，不影响取值与校验。
+- 未配标签、标签为空、或整份映射缺失时回退显示原始值；**原生按键式表单忽略该键**，
+  照旧显示原始值（这也是选这个方案而不是把 options 改成对象的原因：对象会让原生表单和校验一起坏掉）。

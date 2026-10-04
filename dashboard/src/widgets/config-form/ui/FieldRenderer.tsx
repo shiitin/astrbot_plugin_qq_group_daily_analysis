@@ -25,6 +25,7 @@ import {
   EyeOutlined,
   ExclamationCircleFilled,
 } from "@ant-design/icons";
+import { resolveOptionLabel } from "../../../entities/config/model/optionLabels";
 import { SchemaFieldItem } from "../../../entities/config/model/types";
 import {
   AvailableProvider,
@@ -380,16 +381,24 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           : typeof defaultValue === "string"
           ? defaultValue
           : "";
+      // 显示名可选：schema 里可用 option_labels 给每个原始值配一个人话标签
+      // （配置里存的仍是原始值；未配时照旧显示原始值）
+      const optionLabels = fieldSchema.option_labels as
+        | Record<string, string>
+        | undefined;
       return (
         <Select
           value={currentVal}
           onChange={(v) => onChange(v)}
           style={{ width: "100%" }}
           status={error ? "error" : undefined}
-          options={options.map((opt) => ({
-            label: String(opt),
-            value: String(opt),
-          }))}
+          options={options.map((opt) => {
+            const raw = String(opt);
+            return {
+              label: resolveOptionLabel(raw, optionLabels),
+              value: raw,
+            };
+          })}
         />
       );
     }
