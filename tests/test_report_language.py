@@ -26,7 +26,9 @@ from src.shared.report_language import (
 class FakeConfigManager:
     """最小配置管理器替身。"""
 
-    def __init__(self, language: str = "auto", template: str | None = "HatsuneMiku") -> None:
+    def __init__(
+        self, language: str = "auto", template: str | None = "HatsuneMiku"
+    ) -> None:
         self.language = language
         self.template = template
 
@@ -131,34 +133,153 @@ def test_format_report_date(language: str | None, expected: str) -> None:
 
 
 def test_detect_simplified_chinese() -> None:
-    texts = ["今天群里好热闹，大家都聊新出的游戏，我也来说两句，这个画风真好看，推荐一起玩"]
+    texts = [
+        "今天群里好热闹，大家都聊新出的游戏",
+        "我也来说两句，这个画风真好看",
+        "推荐大家一起玩，晚上联机",
+    ]
     assert detect_language_from_messages(texts) == "zh-Hans"
 
 
 def test_detect_traditional_chinese() -> None:
-    texts = ["今天群裡好熱鬧，大家都聊新出的遊戲，我也來說兩句，這個畫風真好看，推薦一起玩"]
+    texts = [
+        "我們來說說這個新遊戲吧，你們覺得好玩嗎",
+        "這裡的畫風真的很美，請大家推薦更多",
+        "謝謝大家，我們明天再來討論這個",
+    ]
     assert detect_language_from_messages(texts) == "zh-Hant"
 
 
 def test_detect_japanese() -> None:
-    texts = ["こんにちは、今日はいい天気ですね。みんなでゲームをしましょう！"]
+    texts = [
+        "こんにちは、今日はいい天気ですね",
+        "みんなでゲームをしましょう！",
+        "このイラスト、とても可愛いと思うよ",
+    ]
     assert detect_language_from_messages(texts) == "ja"
 
 
 def test_detect_english() -> None:
-    texts = ["Hello everyone, today we played a new game and it was really fun. See you tomorrow!"]
+    texts = [
+        "Hello everyone, today we played a new game",
+        "It was really fun, see you tomorrow",
+        "Anyone wants to join the next session tonight?",
+    ]
     assert detect_language_from_messages(texts) == "en"
 
 
 def test_detect_insufficient_evidence_returns_none() -> None:
     assert detect_language_from_messages(["你好", "在吗"]) is None
     assert detect_language_from_messages([]) is None
+    # 单一长消息也不够（样本消息数下限）
+    assert (
+        detect_language_from_messages(
+            [
+                "今天群里好热闹，大家都聊新出的游戏，我也来说两句，这个画风真好看，推荐一起玩"
+            ]
+        )
+        is None
+    )
 
 
-def test_detect_chinese_with_few_kana_stays_chinese() -> None:
-    """汉字为主、夹少量假名（如引用日文歌名）仍按中文处理。"""
-    texts = ["今天听了初音ミク的新歌，感觉不错，大家都在讨论编曲和调教，推荐去听一遍"]
+def test_sticker_line_is_ignored() -> None:
+    """Telegram 历史里的「Sticker: 😋」这类占位行没有语言证据，不该投票。"""
+    texts = [
+        "Sticker: 😋",
+        "今天群里好热闹，大家都聊新出的游戏",
+        "我也来说两句，这个画风真好看",
+        "推荐大家一起玩，晚上联机",
+        "Sticker: 🎉",
+    ]
     assert detect_language_from_messages(texts) == "zh-Hans"
+
+
+def test_kana_nickname_in_mention_does_not_flip_to_japanese() -> None:
+    """群友昵称是三个平假名（@みく）时，整群不能被判成日文。"""
+    texts = [
+        "@みく 你今天怎么不说话",
+        "大家都在等你呢，快点回来",
+        "刚刚那个活动你参加了吗",
+        "回来记得说一声，我们继续聊",
+    ]
+    assert detect_language_from_messages(texts) == "zh-Hans"
+
+
+def test_url_and_cq_noise_is_ignored() -> None:
+    texts = [
+        "https://example.com/news/hello-world",
+        "[CQ:image,file=abc.jpg]",
+        "今天群里好热闹，大家都聊新出的游戏",
+        "我也来说两句，这个画风真好看",
+        "推荐大家一起玩，晚上联机",
+    ]
+    assert detect_language_from_messages(texts) == "zh-Hans"
+
+
+def test_latin_nickname_does_not_flip_to_english() -> None:
+    texts = [
+        "@MikuFan 你今天怎么不说话",
+        "大家都在等你呢，快点回来",
+        "刚刚那个活动你参加了吗",
+    ]
+    assert detect_language_from_messages(texts) == "zh-Hans"
+
+
+def test_chinese_group_with_one_japanese_quote_stays_chinese() -> None:
+    """汉字为主的群夹一条日文引用（歌名/歌词）仍按中文处理——占比不够 70% 就不换语言。"""
+    texts = [
+        "今天听了夜に駆ける，感觉不错",
+        "大家都在讨论编曲和调教，推荐去听一遍",
+        "我觉得这首歌的副歌特别好听",
+        "你们平时都听什么歌，说两个来",
+        "晚上一起联机吗，我这边有空",
+        "刚下班，等下就上来",
+        "这个画风确实很好看",
+        "我先把作业写完再玩",
+        "群里最近好热闹啊",
+        "明天见，大家早点睡",
+    ]
+    assert detect_language_from_messages(texts) == "zh-Hans"
+
+
+def test_mixed_group_below_threshold_returns_none() -> None:
+    """达不到 70% 的混合语群不猜（返回 None = 不干预，走历史行为）。"""
+    texts = [
+        "今天群里好热闹啊",
+        "我也来说两句",
+        "推荐大家一起玩",
+        "こんにちは、今日はいい天気ですね",
+        "みんなでゲームをしましょう",
+        "このイラスト、とても可愛いと思うよ",
+    ]
+    assert detect_language_from_messages(texts) is None
+    # 恰好 70% 也不判（要求「大于 70%」）
+    exactly_seventy = [
+        "中文消息一",
+        "中文消息二",
+        "中文消息三",
+        "中文消息四",
+        "中文消息五",
+        "中文消息六",
+        "中文消息七",
+        *[
+            "こんにちは、今日はいい天気ですね",
+            "みんなでゲームをしましょう",
+            "このイラスト、とても可愛いと思うよ",
+        ],
+    ]
+    assert detect_language_from_messages(exactly_seventy) is None
+
+
+def test_english_group_with_chinese_smattering_stays_english() -> None:
+    texts = [
+        "Hello everyone, today we played a new game",
+        "It was really fun, see you tomorrow",
+        "Anyone wants to join the next session tonight?",
+        "I will bring some snacks for the group",
+        "我来晚了，抱歉",
+    ]
+    assert detect_language_from_messages(texts) == "en"
 
 
 def test_resolve_auto_uses_detected_language() -> None:
@@ -180,7 +301,12 @@ def test_explicit_language_overrides_detection() -> None:
 
 
 def test_apply_auto_detection_writes_context() -> None:
-    assert apply_auto_language_detection(["Hello everyone, today we played a new game, it was fun!"]) == "en"
+    english = [
+        "Hello everyone, today we played a new game",
+        "It was really fun, see you tomorrow",
+        "Anyone wants to join the next session tonight?",
+    ]
+    assert apply_auto_language_detection(english) == "en"
     assert get_detected_language() == "en"
     assert apply_auto_language_detection(["你好"]) is None
     assert get_detected_language() is None
@@ -189,4 +315,9 @@ def test_apply_auto_detection_writes_context() -> None:
 def test_detected_language_still_gated_by_template() -> None:
     """自动判断出来的语言同样受模板白名单约束。"""
     remember_detected_language("en")
-    assert resolve_report_language(FakeConfigManager(language="auto", template="scrapbook")) is None
+    assert (
+        resolve_report_language(
+            FakeConfigManager(language="auto", template="scrapbook")
+        )
+        is None
+    )

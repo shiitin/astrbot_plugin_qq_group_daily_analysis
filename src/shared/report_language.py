@@ -8,7 +8,9 @@
 
 设计约束（重要）：
 
-- ``auto``（默认）时**不追加任何指令**，行为与历史版本完全一致。
+- ``auto``（默认）表示**自动判断**：按本次分析的**群聊消息正文**判定语言（某一语言占
+  有语言证据的消息数 > 70% 才判），证据不足时不干预、保持历史行为。昵称、贴纸、链接、
+  @提及、CQ 码等非正文内容在判定前已被剥离，不会把整群带偏。
 - 语言指令必须显式保护"引用原文"与昵称：引用群友的原话一字不改（含原有语言、
   错别字、标点、表情字符），昵称/群名/链接/JSON 字段名保持原文。
   报告语言只作用于解说文案（标题、点评、总结等），不作用于引用内容。
@@ -16,10 +18,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import re
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 #: 默认值：保持历史行为（骨架简体、页面声明跟随渲染环境、LLM 自由发挥）
 AUTO = "auto"
@@ -52,10 +57,26 @@ _DETECTED_LANGUAGE: ContextVar[str | None] = ContextVar(
 )
 
 #: 判定阈值（保守优先：证据不足时返回 None，回到历史行为，不乱猜）
-_MIN_KANA = 3
-_KANA_RATIO = 0.15
-_MIN_CJK = 30
-_MIN_LATIN = 30
+#: 某一语言占比必须**高于**该比例才判定——混合语群不猜。
+_LANGUAGE_SHARE_THRESHOLD = 0.70
+#: 参与判定的「有语言证据」消息数下限与语言字符数下限（样本太小不判）
+_MIN_VOTING_MESSAGES = 3
+_MIN_LANGUAGE_CHARS = 20
+
+#: 正文里的非正文噪音：贴纸/图片等占位行、链接、@提及、CQ 码、方括号占位词。
+#: 这些内容经常夹带外语（昵称是三个平假名、贴纸名是英文），必须先剥掉再判语言。
+_URL_PATTERN = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+_CQ_CODE_PATTERN = re.compile(r"\[CQ:[^\]]*\]", re.IGNORECASE)
+_BRACKET_PLACEHOLDER_PATTERN = re.compile(r"\[[^\[\]]{1,16}\]")
+_AT_MENTION_PATTERN = re.compile(
+    r"@(?:[A-Za-z0-9_.\-]{1,32}|[\u3040-\u30ff\u3130-\u318f\uac00-\ud7af]{1,16})"
+)
+#: 整行是媒体占位（Telegram 历史里形如 "Sticker: 😋"）→ 整行丢掉
+_MEDIA_LINE_PATTERN = re.compile(
+    r"^\s*(?:sticker|gif|image|photo|video|audio|voice|record|file|document"
+    r"|animation|emoji|contact|location)s?\s*[:：]",
+    re.IGNORECASE,
+)
 
 #: 简繁特征字对（简体 繁体，均为常用高频且互不通用的字）：用于中文内部区分简繁
 _SIMPLIFIED_TRADITIONAL_PAIRS = (
@@ -114,40 +135,104 @@ def _detect_chinese_variant(text: str) -> str:
     return "zh-Hans"
 
 
-def detect_language_from_messages(texts: Iterable[str]) -> str | None:
-    """按群聊消息的字符构成自动判断报告语言。
+def clean_message_body(text: str) -> str:
+    """剥离正文里的非正文噪音，只留用户真正写下的字。
 
-    规则（保守优先，证据不足返回 ``None`` = 不干预）：
-        1. 假名（日文独有）出现且占汉字+假名的比例 ≥ 15% → ``ja``；
-        2. 汉字 ≥ 30 且不少于拉丁字母 → 中文，再由简繁特征字决定 ``zh-Hant`` / ``zh-Hans``；
-        3. 拉丁字母 ≥ 30 且多于汉字 → ``en``；
-        4. 其余（含谚文等未支持语言、消息过少/过短）→ ``None``。
+    处理对象（这些内容常夹带外语字样，会把整群语言带偏）：
+
+    - 媒体占位整行（Telegram 历史里的 ``Sticker: 😋``）；
+    - 链接、``[CQ:...]`` 码、方括号占位词（``[图片]`` / ``[表情]``）；
+    - ``@提及``（昵称可能就是三个平假名，但它不是正文语言证据）。
 
     Args:
-        texts: 消息文本（可迭代）。
+        text: 消息原始文本。
 
     Returns:
-        检测到的语言代码，或 ``None``。
+        剥离噪音后的正文；无正文时返回空串。
     """
-    total = {"kana": 0, "cjk": 0, "latin": 0, "hangul": 0}
-    sample: list[str] = []
-    for text in texts:
-        if not text:
+    if not text:
+        return ""
+    lines: list[str] = []
+    for raw_line in text.splitlines() or [text]:
+        if _MEDIA_LINE_PATTERN.match(raw_line):
             continue
-        chunk = text[:500]
-        sample.append(chunk)
-        part = _count_scripts(chunk)
-        for key in total:
-            total[key] += part[key]
+        line = _URL_PATTERN.sub(" ", raw_line)
+        line = _CQ_CODE_PATTERN.sub(" ", line)
+        line = _BRACKET_PLACEHOLDER_PATTERN.sub(" ", line)
+        line = _AT_MENTION_PATTERN.sub(" ", line)
+        if line.strip():
+            lines.append(line)
+    return " ".join(lines).strip()
 
-    kana, cjk, latin = total["kana"], total["cjk"], total["latin"]
-    if kana >= _MIN_KANA and kana / max(1, kana + cjk) >= _KANA_RATIO:
+
+def _vote_language(counts: dict[str, int]) -> str | None:
+    """按单条正文的字符构成投一票。
+
+    Args:
+        counts: ``_count_scripts`` 的计数结果。
+
+    Returns:
+        ``ja`` / ``zh`` / ``en``；不足以投票（纯表情、纯数字、谚文等）时返回 ``None``。
+    """
+    if counts["kana"] > 0:
+        # 假名是日文独有的字，中文/英文正文里不会自然出现
         return "ja"
-    if cjk >= _MIN_CJK and cjk >= latin:
-        return _detect_chinese_variant("".join(sample))
-    if latin >= _MIN_LATIN and latin > cjk:
+    if counts["hangul"] > 0 and counts["hangul"] >= counts["cjk"] + counts["latin"]:
+        # 韩文：没有对应的报告语言，不投票
+        return None
+    if counts["latin"] > counts["cjk"]:
         return "en"
+    if counts["cjk"] > 0:
+        return "zh"
     return None
+
+
+def detect_language_from_messages(texts: Iterable[str]) -> str | None:
+    """按群聊消息**正文**自动判断报告语言。
+
+    规则（用户定的口径，保守优先）：
+
+    1. 先剥离非正文噪音（贴纸占位行、链接、@提及、CQ 码、方括号占位词）——昵称/贴纸名
+       里的假名或英文都不算语言证据；
+    2. 每条有语言证据的正文按字符构成投一票：出现假名 → 日文；拉丁多于汉字 → 英文；
+       否则有汉字 → 中文；
+    3. **某一语言的票数占比 > 70%** 且样本足够（≥3 条正文、≥20 个语言字符）才判定，
+       否则返回 ``None``（混合语群不猜，走历史行为）；
+    4. 中文再按简繁特征字区分 ``zh-Hans`` / ``zh-Hant``。
+
+    Args:
+        texts: 消息正文（可迭代）。
+
+    Returns:
+        检测到的语言代码，或 ``None``（证据不足 / 混合语群）。
+    """
+    votes = {"zh": 0, "en": 0, "ja": 0}
+    bodies: list[str] = []
+    language_chars = 0
+    for text in texts:
+        body = clean_message_body(text)
+        if not body:
+            continue
+        counts = _count_scripts(body)
+        chunk_chars = sum(counts.values())
+        if chunk_chars == 0:
+            continue
+        language_chars += chunk_chars
+        bodies.append(body)
+        vote = _vote_language(counts)
+        if vote is not None:
+            votes[vote] += 1
+
+    voting_messages = votes["zh"] + votes["en"] + votes["ja"]
+    if voting_messages < _MIN_VOTING_MESSAGES or language_chars < _MIN_LANGUAGE_CHARS:
+        return None
+
+    best = max(votes, key=lambda key: votes[key])
+    if votes[best] <= _LANGUAGE_SHARE_THRESHOLD * voting_messages:
+        return None
+    if best == "zh":
+        return _detect_chinese_variant("".join(bodies))
+    return best
 
 
 def remember_detected_language(language: str | None) -> None:
