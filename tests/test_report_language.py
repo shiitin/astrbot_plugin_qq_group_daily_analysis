@@ -431,3 +431,34 @@ def test_schema_visible_when_matches_code() -> None:
         "visible_when 与 LANGUAGE_AWARE_TEMPLATES 不一致，"
         "跑 python scripts/sync_report_language_templates.py 同步"
     )
+
+
+def _load_language_cases() -> list[dict]:
+    """读取 golden 用例（与离线测试器 scripts/debug_render.py --cases 共用同一份数据）。"""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    data = json.loads(
+        (root / "data" / "language_cases.json").read_text(encoding="utf-8")
+    )
+    cases = data.get("cases") or []
+    assert cases, "tests/data/language_cases.json 里没有一个用例"
+    return cases
+
+
+@pytest.mark.parametrize(
+    "case",
+    _load_language_cases(),
+    ids=[c.get("name", f"case{i}") for i, c in enumerate(_load_language_cases())],
+)
+def test_language_golden_cases(case: dict) -> None:
+    """golden 用例：真实场景（含真机样本归纳出来的样本）逐条钉住判定结果。
+
+    改判据（阈值 / 权重 / 字词表）后一跑就知道有没有翻；用例文件同时给离线测试器用：
+    python scripts/debug_render.py --cases tests/data/language_cases.json
+    """
+    assert detect_language_from_messages(case["messages"]) == case.get("expect"), (
+        f"用例「{case.get('name')}」判定结果与预期不符；"
+        "想看判定过程跑 python scripts/debug_render.py --detect-file <每行一条消息的文件>"
+    )
