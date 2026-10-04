@@ -7,7 +7,7 @@
   3. 渲染矩阵：HatsuneMiku × {网页模板, 长图模板} × {auto, zh-Hans, zh-Hant, en, ja}
      —— 每份检查：渲染成功、无 Jinja 残留、页面语言声明正确、骨架文案与语言一致
   4. 长图专项：交互件类名出现 0 次（铁律：默认态完整可读、动效不入长图）
-  5. 前端产物含 visible_when / option_labels 支持
+  5. 前端产物已接官方键 condition / labels（且不含自造键）
 
 用法：
   ../../.venv-render/bin/python scripts/smoke_report_language.py            # 渲染 + 静态检查
@@ -78,7 +78,8 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def check_schema() -> None:
-    schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
+    schema_text = (ROOT / "_conf_schema.json").read_text(encoding="utf-8")
+    schema = json.loads(schema_text)
     basic = schema["basic"]["items"]
     keys = list(basic)
     item = basic.get("report_language")
@@ -90,19 +91,20 @@ def check_schema() -> None:
         f"顺序 {keys.index('report_template')} → {keys.index('report_language') if item else '缺失'}",
     )
 
+    condition = (item or {}).get("condition") or {}
+    declared = condition.get("report_template")
     check(
-        "schema: visible_when 只剩初音模板",
-        item is not None
-        and item.get("visible_when") == {"report_template": [TEMPLATE]},
-        json.dumps(item.get("visible_when") if item else None, ensure_ascii=False),
+        "schema: 官方键 condition 指向初音模板（单值相等）",
+        declared == TEMPLATE,
+        json.dumps(condition, ensure_ascii=False),
     )
 
     options = list((item or {}).get("options") or [])
-    labels = dict((item or {}).get("option_labels") or {})
+    labels = list((item or {}).get("labels") or [])
     check(
-        "schema: option_labels 覆盖全部选项且无多余键",
-        set(labels) == set(options) and all(labels.values()),
-        f"options={options} labels={list(labels.values())}",
+        "schema: 官方键 labels 与 options 等长且无空串（防串位）",
+        len(labels) == len(options) and all(label.strip() for label in labels),
+        f"options={options} labels={labels}",
     )
     check(
         "schema: 默认值在选项内",
@@ -115,14 +117,21 @@ def check_schema() -> None:
         str(options),
     )
 
+    # 反向保险丝：不许再出现自造键（这次整改的教训固化成检查）
+    invented = [key for key in ("visible_when", "option_labels", '"hidden"') if key in schema_text]
+    check(
+        "schema: 不含自造键（visible_when / option_labels / hidden）",
+        not invented,
+        ("发现：" + "、".join(invented)) if invented else "干净",
+    )
+
     from src.shared.report_language import LANGUAGE_AWARE_TEMPLATES
 
-    visible_when = (item or {}).get("visible_when") or {}
+    declared_list = declared if isinstance(declared, list) else [declared]
     check(
-        "schema: visible_when 与 LANGUAGE_AWARE_TEMPLATES 一致",
-        list(visible_when.get("report_template") or [])
-        == list(LANGUAGE_AWARE_TEMPLATES),
-        f"{visible_when.get('report_template')} vs {list(LANGUAGE_AWARE_TEMPLATES)}",
+        "schema: condition 名单与 LANGUAGE_AWARE_TEMPLATES 一致",
+        declared_list == list(LANGUAGE_AWARE_TEMPLATES),
+        f"{declared_list} vs {list(LANGUAGE_AWARE_TEMPLATES)}",
     )
 
 
@@ -258,9 +267,15 @@ def check_frontend_bundle() -> None:
         bundle.read_text(encoding="utf-8", errors="replace") if bundle.exists() else ""
     )
     check(
-        "前端产物: 含 visible_when 与 option_labels 支持",
-        "visible_when" in text and "option_labels" in text,
+        "前端产物: 已接官方键 condition / labels",
+        "condition" in text and "labels" in text,
         f"{bundle.name} {bundle.stat().st_size // 1024 if bundle.exists() else 0} KB",
+    )
+    stale = [key for key in ("visible_when", "option_labels") if key in text]
+    check(
+        "前端产物: 不再含自造键（需重建产物）",
+        not stale,
+        ("发现：" + "、".join(stale) + "，请重建 dashboard 产物") if stale else "干净",
     )
 
 

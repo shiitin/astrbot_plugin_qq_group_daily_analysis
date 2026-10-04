@@ -1,8 +1,12 @@
 """简繁判定用的字表 / 词表（**自动生成，别手改**）。
 
 生成脚本：scripts/gen_zh_variant_tables.py
-数据来源：OpenCC（Apache-2.0）的 TSCharacters.txt / TWPhrases.txt / HKPhrases.txt
-          + 生成脚本里的高频用词补充表与粤语常用字。
+数据来源：OpenCC（Apache License 2.0）—— https://github.com/BYVoid/OpenCC
+          TSCharacters.txt（繁体→简体，取 1:1 且互不通用的字对）
+          TWPhrases.txt（大陆用词 → 台湾用词）、HKPhrases.txt（→ 香港用词）
+          + 生成脚本里的高频用词补充表与粤语常用字（OpenCC 未收录部分）
+许可：本生成数据适用 Apache-2.0，详见 src/shared/zh_variant_tables.SOURCE-NOTICE.md
+      （全文见 LICENSES/Apache-2.0.txt）；本仓库其余部分沿用项目 MIT 许可。
 
 用途：`report_language._detect_chinese_variant()` 用字形特征 + 用词特征投票，
 判断一个中文群该出简体还是繁体报告。词表统一归一化成简体形式，所以

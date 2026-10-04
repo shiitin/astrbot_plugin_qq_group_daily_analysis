@@ -17,12 +17,15 @@ export interface SchemaFieldItem {
   default?: unknown;
   options?: Array<string | number>;
   /**
-   * 选项的显示名：键为 `options` 里的原始值，值为面板上显示的文字。
-   * 只影响显示，配置里存的仍是原始值（原生按键式表单不支持，会照旧显示原始值）。
+   * 选项显示名：与 `options` **顺序一一对应**的数组（官方键，AstrBot 支持按 WebUI 语言切换）。
+   * 只影响显示，配置里存的仍是 `options` 里的原始值。
    */
-  option_labels?: Record<string, string>;
-  /** 条件显示依赖：声明的字段当前值命中数组内任一值时才显示本字段（仅插件自带面板支持） */
-  visible_when?: Record<string, Array<string | number | boolean>>;
+  labels?: string[];
+  /**
+   * 条件显示（官方键）：依赖项的当前值等于给定值时本字段才显示。
+   * 值为单值（与维护者在 `size`/`custom_size` 上的用法一致）；为兼容旧写法也接受数组（命中任一即显示）。
+   */
+  condition?: Record<string, unknown>;
   items?: SchemaFieldItem | Record<string, SchemaFieldItem>;
   templates?: Record<
     string,

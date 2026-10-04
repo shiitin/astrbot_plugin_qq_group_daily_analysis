@@ -413,8 +413,8 @@ def test_detected_language_still_gated_by_template() -> None:
     )
 
 
-def test_schema_visible_when_matches_code() -> None:
-    """设置项的 visible_when 名单必须与 LANGUAGE_AWARE_TEMPLATES 一致。
+def test_schema_condition_matches_code() -> None:
+    """设置项的官方键 condition 必须与 LANGUAGE_AWARE_TEMPLATES 一致。
 
     这是「加模板只改一处」的保险丝：漏同步时跑
     python scripts/sync_report_language_templates.py 修好。
@@ -424,13 +424,34 @@ def test_schema_visible_when_matches_code() -> None:
 
     root = Path(__file__).resolve().parent.parent
     schema = json.loads((root / "_conf_schema.json").read_text(encoding="utf-8"))
-    visible = schema["basic"]["items"]["report_language"]["visible_when"][
-        "report_template"
-    ]
-    assert list(visible) == list(LANGUAGE_AWARE_TEMPLATES), (
-        "visible_when 与 LANGUAGE_AWARE_TEMPLATES 不一致，"
+    item = schema["basic"]["items"]["report_language"]
+    declared = item["condition"]["report_template"]
+    declared_list = declared if isinstance(declared, list) else [declared]
+    assert declared_list == list(LANGUAGE_AWARE_TEMPLATES), (
+        "condition.report_template 与 LANGUAGE_AWARE_TEMPLATES 不一致，"
         "跑 python scripts/sync_report_language_templates.py 同步"
     )
+
+
+def test_schema_uses_official_keys_only() -> None:
+    """设置项只能用 AstrBot 官方 schema 键（visible_when / option_labels 等自造键禁止再出现）。
+
+    背景：本模板曾自造 visible_when / option_labels，官方等价键是 condition / labels
+    （`condition` 见维护者自己在 daily_comic 里的用法；`labels` 见官方插件配置文档的
+    「配置项国际化」一节）。这条断言把该教训固化为回归测试。
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    schema_text = (root / "_conf_schema.json").read_text(encoding="utf-8")
+    for invented in ("visible_when", "option_labels"):
+        assert invented not in schema_text, f"_conf_schema.json 不应再出现自造键 {invented}"
+
+    item = json.loads(schema_text)["basic"]["items"]["report_language"]
+    assert isinstance(item.get("labels"), list), "labels 必须是数组（与 options 顺序对应）"
+    assert len(item["labels"]) == len(item["options"]), "labels 必须与 options 等长，否则会串位"
+    assert all(label.strip() for label in item["labels"]), "labels 不允许空串"
 
 
 def _load_language_cases() -> list[dict]:

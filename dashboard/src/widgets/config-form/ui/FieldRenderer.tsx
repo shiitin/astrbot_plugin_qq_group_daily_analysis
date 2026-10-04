@@ -25,7 +25,7 @@ import {
   EyeOutlined,
   ExclamationCircleFilled,
 } from "@ant-design/icons";
-import { resolveOptionLabel } from "../../../entities/config/model/optionLabels";
+import { resolveOptionLabel } from "../../../entities/config/model/optionLabel";
 import { SchemaFieldItem } from "../../../entities/config/model/types";
 import {
   AvailableProvider,
@@ -203,7 +203,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           }}
         >
           {Object.entries(subItems).map(([subKey, subField]) => {
-            if (subField.invisible || subField.hidden) return null;
+            if (subField.invisible) return null;
             const subValue =
               objVal[subKey] !== undefined ? objVal[subKey] : subField.default;
             const subKeyPath = `${fullKeyPath || fieldKey}.${subKey}`;
@@ -381,11 +381,8 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           : typeof defaultValue === "string"
           ? defaultValue
           : "";
-      // 显示名可选：schema 里可用 option_labels 给每个原始值配一个人话标签
-      // （配置里存的仍是原始值；未配时照旧显示原始值）
-      const optionLabels = fieldSchema.option_labels as
-        | Record<string, string>
-        | undefined;
+      // 显示名走官方键 labels（与 options 顺序一一对应）；缺标签时回退显示原始值
+      const labels = fieldSchema.labels;
       return (
         <Select
           value={currentVal}
@@ -395,7 +392,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           options={options.map((opt) => {
             const raw = String(opt);
             return {
-              label: resolveOptionLabel(raw, optionLabels),
+              label: resolveOptionLabel(raw, options, labels),
               value: raw,
             };
           })}

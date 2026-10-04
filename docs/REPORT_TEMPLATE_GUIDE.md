@@ -303,13 +303,13 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 2. 把模板名加进 `LANGUAGE_AWARE_TEMPLATES`——**报告语言只对该白名单生效**
    （未适配的模板套上语言只会得到「骨架中文 + 解说英文」的半成品，故做门禁）；
 3. 跑 `python scripts/sync_report_language_templates.py`，它会把这个名单写进
-   `_conf_schema.json` 的 `report_language.visible_when.report_template`——
+   `_conf_schema.json` 的 `report_language.condition.report_template`——
    设置项「可见」与「生效」因此永远一致，不需要手改 JSON。
 
-漏同步也不会静默出错：`tests/test_report_language.py::test_schema_visible_when_matches_code`
+漏同步也不会静默出错：`tests/test_report_language.py::test_schema_condition_matches_code`
 会在两边不一致时失败，并提示跑哪个脚本。
 
-### 11.3 设置项条件显示 `visible_when`（仅插件自带 HTML 面板支持）
+### 11.3 设置项条件显示 `condition`（AstrBot 官方键）
 
 配置项位置：`basic.items` 里**紧跟在 `report_template` 之后**（渲染顺序即 JSON 键顺序，
 所以面板上它就显示在「报告模板」正下方，只有选中 HatsuneMiku 时才出现）。
@@ -318,36 +318,35 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 "report_language": {
   "type": "string",
   "options": ["auto", "zh-Hans", "zh-Hant", "en", "ja"],
-  "visible_when": {"report_template": ["HatsuneMiku"]}
+  "condition": {"report_template": "HatsuneMiku"}
 }
 ```
 
-- 语义：依赖字段的当前值命中数组内任一值时才显示本字段；支持裸字段名（跨分组查找）与
-  `"分组.字段"` 两种写法；多个条件为「与」关系；空数组视为不限制；`invisible` 优先级更高。
+- 语义：依赖项的当前值**等于**声明值时才显示本字段（**单值**，不是数组）。本仓库维护者已在
+  `daily_comic.drawing_provider_overrides.*.size` / `custom_size` 上用同一写法；白名单超过一个模板时
+  同步脚本会写成数组（插件自带面板支持命中任一即显示，官方面板届时需回归确认）。
+- 支持裸字段名（跨分组查找）与 `"分组.字段"` 两种写法；多个键为「与」关系；`invisible` 优先级更高。
 - 实现位置：`dashboard/src/pages/config/model/useConfigViewModel.ts` 的 `isFieldVisible()`；
   分组侧栏的字段计数与搜索命中数走同一规则，避免出现「侧栏数字 ≠ 实际可见字段数」。
-- 局限：AstrBot **原生按键式配置表单不支持条件显示**（schema 无该能力，`invisible` 是静态隐藏），
-  因此从原生表单进入时该字段始终可见；它只是数据，不生效也不影响保存。
+- 官方键的好处：**AstrBot 官方 WebUI 与插件自带面板都按它隐藏字段**，不再需要各写一套私有逻辑。
+  官方插件配置文档尚未列出该键（属于官方 core/WebUI 实际使用中的键），因此本仓库以
+  `condition` 为唯一写法，并由 `test_schema_uses_official_keys_only` 禁止回退到自造键。
 
-### 11.4 选项显示名 `option_labels`（同样只有插件自带面板支持）
+### 11.4 选项显示名 `labels`（AstrBot 官方键）
 
-`options` 里存的是配置真实值（`zh-Hans` / `en` / `ja`…），直接摆给用户看不懂。加一个
-`option_labels` 映射就能只在面板上显示人话，配置里仍然写原始值：
+`options` 里存的是配置真实值（`zh-Hans` / `en` / `ja`…），直接摆给用户看不懂。官方键 `labels`
+是**与 `options` 顺序一一对应**的显示名数组（官方文档「配置项国际化」一节明确说明：`options`
+是保存值不建议翻译，下拉框展示文本用 `labels`，且支持按 WebUI 语言显示）：
 
 ```json
 "report_language": {
   "options": ["auto", "zh-Hans", "zh-Hant", "en", "ja"],
-  "option_labels": {
-    "auto": "自动（按群聊判断）",
-    "zh-Hans": "简体中文",
-    "zh-Hant": "繁體中文",
-    "en": "ENGLISH",
-    "ja": "日本語"
-  }
+  "labels": ["自动（按群聊判断）", "简体中文", "繁體中文", "ENGLISH", "日本語"]
 }
 ```
 
-- 实现：`dashboard/src/entities/config/model/optionLabels.ts` 的 `resolveOptionLabel()`，
+- 实现：`dashboard/src/entities/config/model/optionLabel.ts` 的 `resolveOptionLabel(raw, options, labels)`，
   由 `FieldRenderer` 的单选下拉分支使用；纯显示层，不影响取值与校验。
-- 未配标签、标签为空、或整份映射缺失时回退显示原始值；**原生按键式表单忽略该键**，
-  照旧显示原始值（这也是选这个方案而不是把 options 改成对象的原因：对象会让原生表单和校验一起坏掉）。
+- **位置数组，不是字典**：改造/新增选项时顺序必须与 `options` 严格对齐，否则标签会串位——
+  `test_schema_uses_official_keys_only` 断言两者等长，前端单测里也有「顺序错位」用例。
+- 未配标签、标签为空、或整份缺失时回退显示原始值。
