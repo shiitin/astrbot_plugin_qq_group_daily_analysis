@@ -294,13 +294,20 @@ python scripts/debug_render.py -t <模板名> -o debug_output.html [-m mbti|sbti
 - 模板侧：渲染上下文带 `report_language`，模板自解释（`auto` 未命中时不下发值）。
 - 观测：分析服务会打一行 `报告语言自动判断(auto): <语言>`，验收直接 grep 这行。
 
-### 11.2 新增一个多语言模板要动哪些地方
+### 11.2 新增一个多语言模板要动哪些地方（复用报告语言开关）
 
-1. 模板内建语言字典（`en` / `zh-Hant` / `ja` 各列文案齐全），骨架文案按 `REPORT_LANG` 切换；
-2. `src/shared/report_language.py` 的 `LANGUAGE_AWARE_TEMPLATES` 追加模板名——**报告语言只对该白名单生效**
+**唯一真源 = `src/shared/report_language.py` 的 `LANGUAGE_AWARE_TEMPLATES`**，加模板只需三步：
+
+1. 模板自己内建语言字典（`en` / `zh-Hant` / `ja` 各列文案齐全），骨架文案按 `REPORT_LANG` 切换，
+   页面语言声明与字体优先级一并跟随（参考 `templates/HatsuneMiku/` 的做法）；
+2. 把模板名加进 `LANGUAGE_AWARE_TEMPLATES`——**报告语言只对该白名单生效**
    （未适配的模板套上语言只会得到「骨架中文 + 解说英文」的半成品，故做门禁）；
-3. `_conf_schema.json` 中 `report_language.visible_when.report_template` 数组追加同一模板名，
-   保证「设置项可见」与「设置项生效」始终一致。
+3. 跑 `python scripts/sync_report_language_templates.py`，它会把这个名单写进
+   `_conf_schema.json` 的 `report_language.visible_when.report_template`——
+   设置项「可见」与「生效」因此永远一致，不需要手改 JSON。
+
+漏同步也不会静默出错：`tests/test_report_language.py::test_schema_visible_when_matches_code`
+会在两边不一致时失败，并提示跑哪个脚本。
 
 ### 11.3 设置项条件显示 `visible_when`（仅插件自带 HTML 面板支持）
 

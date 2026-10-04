@@ -411,3 +411,23 @@ def test_detected_language_still_gated_by_template() -> None:
         )
         is None
     )
+
+
+def test_schema_visible_when_matches_code() -> None:
+    """设置项的 visible_when 名单必须与 LANGUAGE_AWARE_TEMPLATES 一致。
+
+    这是「加模板只改一处」的保险丝：漏同步时跑
+    python scripts/sync_report_language_templates.py 修好。
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    schema = json.loads((root / "_conf_schema.json").read_text(encoding="utf-8"))
+    visible = schema["basic"]["items"]["report_language"]["visible_when"][
+        "report_template"
+    ]
+    assert list(visible) == list(LANGUAGE_AWARE_TEMPLATES), (
+        "visible_when 与 LANGUAGE_AWARE_TEMPLATES 不一致，"
+        "跑 python scripts/sync_report_language_templates.py 同步"
+    )
